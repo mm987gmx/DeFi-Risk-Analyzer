@@ -53,6 +53,10 @@ def main() -> None:
         console.print("[cyan]Fetching bytecode via RPC...[/cyan]")
         rpc = BlockchainRPC(settings.rpc_url)
         bytecode = rpc.get_bytecode(args.address)
+        if not bytecode:
+            console.print(
+                "[yellow]No bytecode found. This address may be an EOA, not a contract.[/yellow]"
+            )
     else:
         console.print(
             "[yellow]RPC_URL not set. Bytecode analysis skipped.[/yellow]"
@@ -62,10 +66,20 @@ def main() -> None:
         console.print("[cyan]Fetching source code via Etherscan...[/cyan]")
         etherscan = EtherscanClient(settings.etherscan_api_key)
         source_code = etherscan.get_source_code(args.address)
+        if not source_code:
+            console.print(
+                "[yellow]No source code found (not verified or not a contract).[/yellow]"
+            )
     else:
         console.print(
             "[yellow]ETHERSCAN_API_KEY not set. Source analysis skipped.[/yellow]"
         )
+
+    if not bytecode and not source_code:
+        console.print(
+            "[red]No contract code detected. Please provide a contract address.[/red]"
+        )
+        return
 
     console.print("[cyan]Running static analysis...[/cyan]")
     flags = analyze_bytecode(bytecode) + analyze_source(source_code)

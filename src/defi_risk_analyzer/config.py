@@ -1,5 +1,6 @@
 import os
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 
 class Settings(BaseModel):
@@ -9,6 +10,7 @@ class Settings(BaseModel):
 
 
 def load_settings() -> Settings:
+    load_dotenv()
     return Settings(
         etherscan_api_key=os.getenv("ETHERSCAN_API_KEY"),
         rpc_url=os.getenv("RPC_URL"),

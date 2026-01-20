@@ -17,6 +17,9 @@ class EtherscanClient:
         response.raise_for_status()
         payload = response.json()
         result = payload.get("result", [])
-        if not result:
+        if not isinstance(result, list) or not result:
             return ""
-        return result[0].get("SourceCode", "") or ""
+        first = result[0]
+        if not isinstance(first, dict):
+            return ""
+        return first.get("SourceCode", "") or ""

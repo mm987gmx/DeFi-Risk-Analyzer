@@ -11,13 +11,13 @@ This is a starter project for a DeFi risk analysis tool. It accepts a smart cont
 
 ## Quick start
 1. Create a virtual environment and install dependencies:
-   - `python -m venv .venv`
+   - `python3 -m venv .venv`
    - `source .venv/bin/activate`
-   - `pip install -r requirements.txt`
-2. Copy `env.example` to `.env` and set your API keys.
+   - `python -m pip install -r requirements.txt`
+2. Copy `env.example` to `.env` and set your API keys (the app loads them automatically).
 3. Run the CLI:
-   - `python -m defi_risk_analyzer --address 0x... --format markdown`
-
+   - `PYTHONPATH=src python -m defi_risk_analyzer --address 0x... --format markdown`
+python -m defi_risk_analyzer --address 0x1a5FdBc891c5D4E6aD68064Ae45D43146D4F9f3a --format markdown
 ## Project layout
 - `src/defi_risk_analyzer/cli.py` — CLI entrypoint and main workflow
 - `src/defi_risk_analyzer/clients/` — RPC and Etherscan clients
