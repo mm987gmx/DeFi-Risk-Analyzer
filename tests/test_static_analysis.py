@@ -30,6 +30,7 @@ def test_analyze_source_detects_basic_red_flags() -> None:
     assert "source:delegatecall" in ids
     assert "source:call.value" in ids
     assert "source:tx.origin" in ids
+    assert "source:missing-nonreentrant" in ids
 
     # Evidence should be human-readable and include a line reference.
     for flag in flags:
@@ -47,3 +48,20 @@ def test_analyze_bytecode_detects_opcodes() -> None:
     # Then: both opcode-based flags should be present.
     assert "bytecode:opcode:delegatecall" in ids
     assert "bytecode:opcode:selfdestruct" in ids
+
+
+def test_analyze_source_detects_missing_only_owner() -> None:
+    # Given: contract refers to ownership but does not use onlyOwner.
+    source = """
+    contract Vault is Ownable {
+        address public owner;
+
+        function setOwner(address next) external {
+            owner = next;
+        }
+    }
+    """
+    flags = analyze_source(source)
+    ids = {flag.id for flag in flags}
+
+    assert "source:missing-onlyowner" in ids
