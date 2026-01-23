@@ -2,12 +2,14 @@ import requests
 
 
 class EtherscanClient:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, chain_id: int = 1):
         self.api_key = api_key
-        self.base_url = "https://api.etherscan.io/api"
+        self.chain_id = chain_id
+        self.base_url = "https://api.etherscan.io/v2/api"
 
-    def get_source_code(self, address: str) -> str:
+    def get_source_code(self, address: str) -> tuple[str, str, str, str]:
         params = {
+            "chainid": self.chain_id,
             "module": "contract",
             "action": "getsourcecode",
             "address": address,
@@ -16,10 +18,13 @@ class EtherscanClient:
         response = requests.get(self.base_url, params=params, timeout=20)
         response.raise_for_status()
         payload = response.json()
+        status = str(payload.get("status", ""))
+        message = str(payload.get("message", ""))
         result = payload.get("result", [])
         if not isinstance(result, list) or not result:
-            return ""
+            detail = result if isinstance(result, str) else ""
+            return "", status, message, detail
         first = result[0]
         if not isinstance(first, dict):
-            return ""
-        return first.get("SourceCode", "") or ""
+            return "", status, message, ""
+        return first.get("SourceCode", "") or "", status, message, ""

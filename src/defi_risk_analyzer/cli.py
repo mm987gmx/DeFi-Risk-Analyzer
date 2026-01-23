@@ -19,6 +19,7 @@ from defi_risk_analyzer.report.generator import (
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
+    # Define CLI arguments for the main workflow.
     parser = argparse.ArgumentParser(
         description="DeFi Risk Analyzer - engineering version"
     )
@@ -42,9 +43,21 @@ def build_arg_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
+    # Orchestrate data fetching, analysis, LLM enrichment, and output formatting.
     console = Console()
     args = build_arg_parser().parse_args()
     settings = load_settings()
+
+    chain_ids = {
+        "ethereum": 1,
+        "mainnet": 1,
+    }
+    chain_id = chain_ids.get(args.chain.lower())
+    if chain_id is None:
+        console.print(
+            "[yellow]Unknown chain. Falling back to Ethereum mainnet for Etherscan.[/yellow]"
+        )
+        chain_id = 1
 
     bytecode = ""
     source_code = ""
@@ -64,12 +77,18 @@ def main() -> None:
 
     if settings.etherscan_api_key:
         console.print("[cyan]Fetching source code via Etherscan...[/cyan]")
-        etherscan = EtherscanClient(settings.etherscan_api_key)
-        source_code = etherscan.get_source_code(args.address)
+        etherscan = EtherscanClient(settings.etherscan_api_key, chain_id=chain_id)
+        source_code, status, message, detail = etherscan.get_source_code(args.address)
         if not source_code:
             console.print(
                 "[yellow]No source code found (not verified or not a contract).[/yellow]"
             )
+            if status or message:
+                console.print(
+                    f"[yellow]Etherscan status: {status}, message: {message}[/yellow]"
+                )
+            if detail:
+                console.print(f"[yellow]Etherscan detail: {detail}[/yellow]")
     else:
         console.print(
             "[yellow]ETHERSCAN_API_KEY not set. Source analysis skipped.[/yellow]"
@@ -91,7 +110,8 @@ def main() -> None:
         red_flags=flags,
     )
 
-    report = enrich_with_llm(report, settings)
+    # LLM step is optional and only runs when source code is available.
+    report = enrich_with_llm(report, settings, source_code)
 
     if args.format == "markdown":
         print(to_markdown(report))

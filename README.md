@@ -21,7 +21,8 @@ This is a starter project for a DeFi risk analysis tool. It accepts a smart cont
 ## Environment variables
 - `RPC_URL` — Ethereum JSON-RPC endpoint used to fetch bytecode.
 - `ETHERSCAN_API_KEY` — API key used to fetch verified source code.
-- `OPENAI_API_KEY` — optional, used only for the LLM summary stub.
+- `OPENAI_API_KEY` — used to call the LLM for contract insights.
+- `OPENAI_MODEL` — model name for the LLM call (default: `gpt-4o-mini`).
 
 ## Running tests
 1. Install the test runner:
