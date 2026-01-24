@@ -11,11 +11,26 @@ SEVERITY_ORDER: dict[Severity, int] = {
 
 
 def compute_overall_risk(flags: list[RedFlag]) -> Severity:
-    # Returns the highest severity among the given red flags, or "low" if none exist.
-    if not flags:
+    # Returns a severity bucket based on the aggregate risk score.
+    score = compute_risk_score(flags)
+    if score < 2.0:
         return "low"
-    highest = max(flags, key=lambda flag: SEVERITY_ORDER[flag.severity])
-    return highest.severity
+    if score < 4.0:
+        return "medium"
+    return "high"
+
+
+def compute_risk_score(findings: list[RedFlag | LLMFinding]) -> float:
+    """Return the sum of severity scores for the provided findings.
+
+    Scoring: high=2.0, medium=1.0, low=0.5. Unknown severities are ignored.
+    """
+    severity_scores: dict[str, float] = {
+        "high": 2.0,
+        "medium": 1.0,
+        "low": 0.5,
+    }
+    return sum(severity_scores.get(finding.severity, 0.0) for finding in findings)
 
 
 def to_json(report: RiskReport) -> str:
