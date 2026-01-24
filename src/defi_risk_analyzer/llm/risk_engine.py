@@ -1,8 +1,9 @@
+import json
 import textwrap
 import requests
 
 from defi_risk_analyzer.config import Settings
-from defi_risk_analyzer.models import RiskReport
+from defi_risk_analyzer.models import RiskReport, LLMFinding, Severity
 
 
 # Base prompt sent to the model for risk analysis.
@@ -63,6 +64,56 @@ def _call_openai(model: str, api_key: str, user_message: str) -> str:
     return payload["choices"][0]["message"]["content"].strip()
 
 
+def _extract_json_array(text: str) -> str | None:
+    # Find the first JSON array embedded in the model response.
+    start = text.find("[")
+    end = text.rfind("]")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    return text[start : end + 1]
+
+
+def _normalize_severity(value: str) -> Severity:
+    # Normalize model severity output to our enum values.
+    lowered = value.strip().lower()
+    if lowered in {"low", "medium", "high", "critical"}:
+        return lowered  # type: ignore[return-value]
+    if lowered == "med":
+        return "medium"
+    return "medium"
+
+
+def _parse_llm_findings(raw_text: str) -> list[LLMFinding]:
+    # Parse JSON array output from the model into structured findings.
+    json_block = _extract_json_array(raw_text)
+    if not json_block:
+        return []
+    try:
+        data = json.loads(json_block)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+
+    findings: list[LLMFinding] = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        severity_value = str(item.get("severity", "medium"))
+        findings.append(
+            LLMFinding(
+                issue=str(item.get("issue", "")).strip() or "Unspecified issue",
+                function=str(item.get("function", "")).strip() or "Unknown",
+                severity=_normalize_severity(severity_value),
+                explanation=str(item.get("explanation", "")).strip()
+                or "No explanation provided.",
+                recommendation=str(item.get("recommendation", "")).strip()
+                or "No recommendation provided.",
+            )
+        )
+    return findings
+
+
 def enrich_with_llm(
     report: RiskReport,
     settings: Settings,
@@ -82,11 +133,14 @@ def enrich_with_llm(
         return report
 
     try:
-        report.llm_summary = _call_openai(
+        raw_response = _call_openai(
             settings.openai_model,
             settings.openai_api_key,
             _build_user_message(source_code),
         )
+        report.llm_findings = _parse_llm_findings(raw_response)
+        if not report.llm_findings:
+            report.llm_summary = raw_response
     except requests.RequestException as exc:
         report.llm_summary = f"LLM request failed: {exc}"
     return report
