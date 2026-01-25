@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Literal
 from pydantic import BaseModel, Field
 
@@ -28,7 +28,7 @@ class RiskReport(BaseModel):
     # Unified report containing static and LLM findings.
     contract_address: str
     chain: str
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     overall_risk: Severity
     red_flags: list[RedFlag] = Field(default_factory=list)
     llm_findings: list[LLMFinding] = Field(default_factory=list)

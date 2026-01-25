@@ -14,8 +14,8 @@ from defi_risk_analyzer.models import RiskReport
 from defi_risk_analyzer.report.generator import (
     compute_overall_risk,
     to_json,
-    to_markdown,
 )
+from defi_risk_analyzer.report.report_generator import generate_security_report
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -114,6 +114,6 @@ def main() -> None:
     report = enrich_with_llm(report, settings, source_code)
 
     if args.format == "markdown":
-        print(to_markdown(report))
+        print(generate_security_report(report))
     else:
         print(to_json(report))
