@@ -9,6 +9,11 @@ from defi_risk_analyzer.analysis.static_analysis import (
 from defi_risk_analyzer.clients.blockchain_rpc import BlockchainRPC
 from defi_risk_analyzer.clients.etherscan import EtherscanClient
 from defi_risk_analyzer.config import load_settings
+from defi_risk_analyzer.evaluation.exploit_test import (
+    evaluate_exploit_contract,
+    generate_exploit_report,
+    load_expected_flags,
+)
 from defi_risk_analyzer.llm.risk_engine import enrich_with_llm
 from defi_risk_analyzer.models import RiskReport
 from defi_risk_analyzer.report.generator import (
@@ -25,7 +30,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--address",
-        required=True,
         help="Smart contract address (0x...)",
     )
     parser.add_argument(
@@ -39,6 +43,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="json",
         help="Output format (json or markdown)",
     )
+    parser.add_argument(
+        "--exploit-test",
+        help="Path to a Solidity file for exploit evaluation mode.",
+    )
+    parser.add_argument(
+        "--expected",
+        help="Path to JSON file with expected red flags.",
+    )
     return parser
 
 
@@ -47,6 +59,23 @@ def main() -> None:
     console = Console()
     args = build_arg_parser().parse_args()
     settings = load_settings()
+
+    if args.exploit_test:
+        # Exploit evaluation mode runs a local fixture with expected labels.
+        source_code = ""
+        with open(args.exploit_test, "r", encoding="utf-8") as handle:
+            source_code = handle.read()
+        if not args.expected:
+            console.print("[red]--expected is required in exploit test mode.[/red]")
+            return
+        expected = load_expected_flags(args.expected)
+        result = evaluate_exploit_contract(source_code, expected)
+        print(generate_exploit_report(result))
+        return
+
+    if not args.address:
+        console.print("[red]--address is required unless --exploit-test is used.[/red]")
+        return
 
     chain_ids = {
         "ethereum": 1,

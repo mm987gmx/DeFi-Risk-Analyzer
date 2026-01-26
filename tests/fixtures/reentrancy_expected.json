@@ -1,0 +1,10 @@
+[
+  {
+    "category": "reentrancy",
+    "description": "External call before state update enables reentrancy."
+  },
+  {
+    "category": "unsafe_external_calls",
+    "description": "Low-level call.value is used for ether transfer."
+  }
+]
