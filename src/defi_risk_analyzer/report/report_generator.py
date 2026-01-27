@@ -1,26 +1,13 @@
 import re
-from defi_risk_analyzer.models import RiskReport, RedFlag, LLMFinding, Severity
-
-
-SEVERITY_SCORES: dict[Severity, float] = {
-    "low": 1.0,
-    "medium": 5.0,
-    "high": 10.0,
-    "critical": 25.0,
-}
-
-SEVERITY_RANK: dict[Severity, int] = {
-    "low": 1,
-    "medium": 2,
-    "high": 3,
-    "critical": 4,
-}
+from defi_risk_analyzer.models import RiskReport, RedFlag, LLMFinding
+from defi_risk_analyzer.scoring import SEVERITY_WEIGHTS, SEVERITY_RANK
+from defi_risk_analyzer.analysis.static_analysis import PATTERNS
 
 
 def generate_security_report(report: RiskReport) -> str:
     """Generate a human-readable Markdown security report."""
     summary = _build_summary(report)
-    technical = _build_technical_issues(report.red_flags)
+    technical = _build_technical_issues(report.static_findings)
     ai_findings = _build_ai_findings(report.llm_findings)
     score_section = _build_security_score(report)
 
@@ -44,12 +31,12 @@ def generate_security_report(report: RiskReport) -> str:
 
 
 def _build_summary(report: RiskReport) -> str:
-    if not report.red_flags and not report.llm_findings:
+    if not report.static_findings and not report.llm_findings:
         return "No issues were detected by static or AI analysis."
 
     critical = _collect_top_issues(report)
     overview = (
-        f"The contract has **{len(report.red_flags)}** static findings and "
+        f"The contract has **{len(report.static_findings)}** static findings and "
         f"**{len(report.llm_findings)}** AI findings."
     )
     if critical:
@@ -58,17 +45,17 @@ def _build_summary(report: RiskReport) -> str:
     return f"{overview} No high-severity risks were detected."
 
 
-def _build_technical_issues(flags: list[RedFlag]) -> str:
-    if not flags:
+def _build_technical_issues(findings: list[RedFlag]) -> str:
+    if not findings:
         return "- No static issues detected."
     lines: list[str] = []
-    for flag in flags:
-        function_name = _extract_function_name(flag.evidence or "")
+    for finding in findings:
+        function_name = _extract_function_name(finding.evidence or "")
         lines.append(
-            f"- **{flag.title}** | Function: `{function_name}` | "
-            f"Severity: **{flag.severity}**"
+            f"- **{finding.title}** | Function: `{function_name}` | "
+            f"Severity: **{finding.severity}**"
         )
-        lines.append(f"  - {flag.description}")
+        lines.append(f"  - {finding.description}")
     return "\n".join(lines)
 
 
@@ -88,7 +75,7 @@ def _build_ai_findings(findings: list[LLMFinding]) -> str:
 
 def _build_security_score(report: RiskReport) -> str:
     score, total_points, capped_deduction = _compute_security_score(
-        report.red_flags, report.llm_findings
+        report.static_findings, report.llm_findings
     )
     raw_deduction = total_points
     explanation = (
@@ -101,10 +88,10 @@ def _build_security_score(report: RiskReport) -> str:
 
 
 def _compute_security_score(
-    red_flags: list[RedFlag],
+    static_findings: list[RedFlag],
     llm_findings: list[LLMFinding],
 ) -> tuple[float, float, float]:
-    total = _sum_severity_points(red_flags) + _sum_severity_points(llm_findings)
+    total = _sum_severity_points(static_findings) + _sum_severity_points(llm_findings)
     capped_deduction = min(100.0, total)
     score = max(0.0, 100.0 - capped_deduction)
     return score, total, capped_deduction
@@ -112,8 +99,8 @@ def _compute_security_score(
 
 def _collect_top_issues(report: RiskReport) -> list[str]:
     issues: list[tuple[Severity, str]] = []
-    for flag in report.red_flags:
-        issues.append((flag.severity, flag.title))
+    for finding in report.static_findings:
+        issues.append((finding.severity, finding.title))
     for finding in report.llm_findings:
         issues.append((finding.severity, finding.issue))
 
@@ -122,11 +109,11 @@ def _collect_top_issues(report: RiskReport) -> list[str]:
 
 
 def _sum_severity_points(findings: list[RedFlag | LLMFinding]) -> float:
-    return sum(SEVERITY_SCORES.get(item.severity, 0.0) for item in findings)
+    return sum(SEVERITY_WEIGHTS.get(item.severity, 0.0) for item in findings)
 
 
 def _extract_function_name(evidence: str) -> str:
-    match = re.search(r"\bfunction\s+([A-Za-z0-9_]+)\b", evidence)
+    match = re.search(PATTERNS["function_name"], evidence)
     if match:
         return match.group(1)
     return "Unknown"

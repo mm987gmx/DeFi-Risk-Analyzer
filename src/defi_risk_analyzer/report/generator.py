@@ -1,24 +1,11 @@
 import json
 from defi_risk_analyzer.models import RiskReport, RedFlag, Severity, LLMFinding
+from defi_risk_analyzer.scoring import SEVERITY_RANK, LEGACY_SEVERITY_SCORES
 
 
-SEVERITY_ORDER: dict[Severity, int] = {
-    "low": 1,
-    "medium": 2,
-    "high": 3,
-    "critical": 4,
-}
-
-SEVERITY_SCORES: dict[str, float] = {
-    "high": 2.0,
-    "medium": 1.0,
-    "low": 0.5,
-}
-
-
-def compute_overall_risk(flags: list[RedFlag]) -> Severity:
-    # Returns a severity bucket based on the aggregate risk score.
-    score = compute_risk_score(flags)
+def compute_overall_risk(findings: list[RedFlag]) -> Severity:
+    """Returns a severity bucket based on the aggregate risk score."""
+    score = compute_risk_score(findings)
     if score < 2.0:
         return "low"
     if score < 4.0:
@@ -31,7 +18,7 @@ def compute_risk_score(findings: list[RedFlag | LLMFinding]) -> float:
 
     Scoring: high=2.0, medium=1.0, low=0.5. Unknown severities are ignored.
     """
-    return sum(SEVERITY_SCORES.get(finding.severity, 0.0) for finding in findings)
+    return sum(LEGACY_SEVERITY_SCORES.get(finding.severity, 0.0) for finding in findings)
 
 
 def to_json(report: RiskReport) -> str:
@@ -40,27 +27,27 @@ def to_json(report: RiskReport) -> str:
 
 
 def to_markdown(report: RiskReport) -> str:
-    # Human-friendly report with separate static and LLM sections.
+    """Human-friendly report with separate static and LLM sections."""
     lines = [
         f"# Risk Report",
         f"- Contract: `{report.contract_address}`",
         f"- Chain: `{report.chain}`",
         f"- Generated at: `{report.generated_at.isoformat()}`",
         f"- Overall risk: **{report.overall_risk}**",
-        f"- Static findings: **{len(report.red_flags)}**",
+        f"- Static findings: **{len(report.static_findings)}**",
         f"- LLM findings: **{len(report.llm_findings)}**",
         "",
         "## Static findings",
     ]
-    if not report.red_flags:
-        lines.append("- No red flags detected by static heuristics.")
+    if not report.static_findings:
+        lines.append("- No findings detected by static heuristics.")
     else:
-        for flag in report.red_flags:
+        for finding in report.static_findings:
             lines.append(
-                f"- **{flag.title}** ({flag.severity}) — {flag.description}"
+                f"- **{finding.title}** ({finding.severity}) — {finding.description}"
             )
-            if flag.evidence:
-                lines.append(f"  - Evidence: {flag.evidence}")
+            if finding.evidence:
+                lines.append(f"  - Evidence: {finding.evidence}")
 
     if report.llm_findings:
         lines.append("")

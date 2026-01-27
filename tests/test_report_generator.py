@@ -7,7 +7,7 @@ def test_report_structure_sections_in_order() -> None:
         contract_address="0x123",
         chain="ethereum",
         overall_risk="medium",
-        red_flags=[
+        static_findings=[
             RedFlag(
                 id="source:delegatecall",
                 title="Use of delegatecall",

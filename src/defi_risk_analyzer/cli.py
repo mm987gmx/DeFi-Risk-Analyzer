@@ -6,6 +6,7 @@ from defi_risk_analyzer.analysis.static_analysis import (
     analyze_bytecode,
     analyze_source,
 )
+from defi_risk_analyzer.analysis.heuristics import check_missing_modifiers
 from defi_risk_analyzer.clients.blockchain_rpc import BlockchainRPC
 from defi_risk_analyzer.clients.etherscan import EtherscanClient
 from defi_risk_analyzer.config import load_settings
@@ -21,6 +22,7 @@ from defi_risk_analyzer.report.generator import (
     to_json,
 )
 from defi_risk_analyzer.report.report_generator import generate_security_report
+from defi_risk_analyzer import console_reporter
 
 
 CHAIN_IDS = {
@@ -69,8 +71,7 @@ def main() -> None:
     if _run_exploit_test(args, console):
         return
 
-    if not args.address:
-        console.print("[red]--address is required unless --exploit-test is used.[/red]")
+    if not _validate_args(args, console):
         return
 
     chain_id = _resolve_chain_id(args.chain, console)
@@ -84,19 +85,21 @@ def main() -> None:
     )
 
     if not bytecode and not source_code:
-        console.print(
-            "[red]No contract code detected. Please provide a contract address.[/red]"
-        )
+        console_reporter.report_no_code_detected(console)
         return
 
-    console.print("[cyan]Running static analysis...[/cyan]")
-    flags = analyze_bytecode(bytecode) + analyze_source(source_code)
+    console_reporter.report_running_analysis(console)
+    findings = (
+        analyze_bytecode(bytecode)
+        + analyze_source(source_code)
+        + check_missing_modifiers(source_code)
+    )
 
     report = RiskReport(
         contract_address=args.address,
         chain=args.chain,
-        overall_risk=compute_overall_risk(flags),
-        red_flags=flags,
+        overall_risk=compute_overall_risk(findings),
+        static_findings=findings,
     )
 
     # LLM step is optional and only runs when source code is available.
@@ -106,6 +109,18 @@ def main() -> None:
         print(generate_security_report(report))
     else:
         print(to_json(report))
+
+
+def _validate_args(args: argparse.Namespace, console: Console) -> bool:
+    """Validate required CLI arguments for normal analysis mode.
+    
+    Returns:
+        True if validation passes, False otherwise
+    """
+    if not args.address:
+        console.print("[red]--address is required unless --exploit-test is used.[/red]")
+        return False
+    return True
 
 
 def _run_exploit_test(args: argparse.Namespace, console: Console) -> bool:
@@ -126,26 +141,20 @@ def _run_exploit_test(args: argparse.Namespace, console: Console) -> bool:
 def _resolve_chain_id(chain: str, console: Console) -> int:
     chain_id = CHAIN_IDS.get(chain.lower())
     if chain_id is None:
-        console.print(
-            "[yellow]Unknown chain. Falling back to Ethereum mainnet for Etherscan.[/yellow]"
-        )
+        console_reporter.report_unknown_chain(console)
         return 1
     return chain_id
 
 
 def _fetch_bytecode(rpc_url: str | None, address: str, console: Console) -> str:
     if not rpc_url:
-        console.print(
-            "[yellow]RPC_URL not set. Bytecode analysis skipped.[/yellow]"
-        )
+        console_reporter.report_rpc_skip(console)
         return ""
-    console.print("[cyan]Fetching bytecode via RPC...[/cyan]")
+    console_reporter.report_rpc_fetching(console)
     rpc = BlockchainRPC(rpc_url)
     bytecode = rpc.get_bytecode(address)
     if not bytecode:
-        console.print(
-            "[yellow]No bytecode found. This address may be an EOA, not a contract.[/yellow]"
-        )
+        console_reporter.report_no_bytecode(console)
     return bytecode
 
 
@@ -156,21 +165,11 @@ def _fetch_source_code(
     console: Console,
 ) -> str:
     if not api_key:
-        console.print(
-            "[yellow]ETHERSCAN_API_KEY not set. Source analysis skipped.[/yellow]"
-        )
+        console_reporter.report_etherscan_skip(console)
         return ""
-    console.print("[cyan]Fetching source code via Etherscan...[/cyan]")
+    console_reporter.report_etherscan_fetching(console)
     etherscan = EtherscanClient(api_key, chain_id=chain_id)
     source_code, status, message, detail = etherscan.get_source_code(address)
     if not source_code:
-        console.print(
-            "[yellow]No source code found (not verified or not a contract).[/yellow]"
-        )
-        if status or message:
-            console.print(
-                f"[yellow]Etherscan status: {status}, message: {message}[/yellow]"
-            )
-        if detail:
-            console.print(f"[yellow]Etherscan detail: {detail}[/yellow]")
+        console_reporter.report_no_source(console, status, message, detail)
     return source_code

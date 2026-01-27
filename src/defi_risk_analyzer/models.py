@@ -30,6 +30,6 @@ class RiskReport(BaseModel):
     chain: str
     generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     overall_risk: Severity
-    red_flags: list[RedFlag] = Field(default_factory=list)
+    static_findings: list[RedFlag] = Field(default_factory=list)
     llm_findings: list[LLMFinding] = Field(default_factory=list)
     llm_summary: str | None = None

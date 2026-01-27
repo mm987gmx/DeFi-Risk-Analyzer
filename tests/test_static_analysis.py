@@ -2,6 +2,7 @@ from defi_risk_analyzer.analysis.static_analysis import (
     analyze_bytecode,
     analyze_source,
 )
+from defi_risk_analyzer.analysis.heuristics import check_missing_modifiers
 
 
 def test_analyze_source_detects_basic_red_flags() -> None:
@@ -23,17 +24,19 @@ def test_analyze_source_detects_basic_red_flags() -> None:
     }
     """
     # When: we run static analysis on the source.
-    flags = analyze_source(source)
-    ids = {flag.id for flag in flags}
+    rule_findings = analyze_source(source)
+    heuristic_findings = check_missing_modifiers(source)
+    all_findings = rule_findings + heuristic_findings
+    ids = {flag.id for flag in all_findings}
 
-    # Then: all three patterns are detected.
+    # Then: all patterns are detected.
     assert "source:delegatecall" in ids
     assert "source:call.value" in ids
     assert "source:tx.origin" in ids
-    assert "source:missing-nonreentrant" in ids
+    assert "heuristic:missing-nonreentrant" in ids
 
     # Evidence should be human-readable and include a line reference.
-    for flag in flags:
+    for flag in all_findings:
         assert flag.evidence is not None
         assert "Line" in flag.evidence
 
@@ -61,7 +64,7 @@ def test_analyze_source_detects_missing_only_owner() -> None:
         }
     }
     """
-    flags = analyze_source(source)
-    ids = {flag.id for flag in flags}
+    heuristic_findings = check_missing_modifiers(source)
+    ids = {flag.id for flag in heuristic_findings}
 
-    assert "source:missing-onlyowner" in ids
+    assert "heuristic:missing-onlyowner" in ids
