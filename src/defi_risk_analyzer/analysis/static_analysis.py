@@ -15,8 +15,7 @@ def _match_source_rule(rule: Rule, source_code: str) -> re.Match | None:
 
 def _build_source_evidence(source_code: str, match: re.Match, rule: Rule) -> str:
     # Create a human-readable clue that points to where the match occurred.
-    line_number = source_code[: match.start()].count("\n") + 1
-    line_text = source_code.splitlines()[line_number - 1].strip()
+    line_number, line_text = _get_line_context(source_code, match)
     return (
         f"Line {line_number}: {line_text} (matched '{rule.id}')"
     )
@@ -24,8 +23,7 @@ def _build_source_evidence(source_code: str, match: re.Match, rule: Rule) -> str
 
 def _build_line_evidence(source_code: str, match: re.Match, label: str) -> str:
     # Similar to _build_source_evidence but for heuristic checks without a Rule.
-    line_number = source_code[: match.start()].count("\n") + 1
-    line_text = source_code.splitlines()[line_number - 1].strip()
+    line_number, line_text = _get_line_context(source_code, match)
     return f"Line {line_number}: {line_text} ({label})"
 
 
@@ -110,6 +108,12 @@ def analyze_bytecode(bytecode: str) -> list[RedFlag]:
                 )
             )
     return flags
+
+
+def _get_line_context(source_code: str, match: re.Match) -> tuple[int, str]:
+    line_number = source_code[: match.start()].count("\n") + 1
+    line_text = source_code.splitlines()[line_number - 1].strip()
+    return line_number, line_text
 
 
 def _first_external_function_match(source_code: str) -> re.Match | None:

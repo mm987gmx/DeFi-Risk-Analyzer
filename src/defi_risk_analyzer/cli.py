@@ -23,6 +23,12 @@ from defi_risk_analyzer.report.generator import (
 from defi_risk_analyzer.report.report_generator import generate_security_report
 
 
+CHAIN_IDS = {
+    "ethereum": 1,
+    "mainnet": 1,
+}
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     # Define CLI arguments for the main workflow.
     parser = argparse.ArgumentParser(
@@ -60,68 +66,22 @@ def main() -> None:
     args = build_arg_parser().parse_args()
     settings = load_settings()
 
-    if args.exploit_test:
-        # Exploit evaluation mode runs a local fixture with expected labels.
-        source_code = ""
-        with open(args.exploit_test, "r", encoding="utf-8") as handle:
-            source_code = handle.read()
-        if not args.expected:
-            console.print("[red]--expected is required in exploit test mode.[/red]")
-            return
-        expected = load_expected_flags(args.expected)
-        result = evaluate_exploit_contract(source_code, expected)
-        print(generate_exploit_report(result))
+    if _run_exploit_test(args, console):
         return
 
     if not args.address:
         console.print("[red]--address is required unless --exploit-test is used.[/red]")
         return
 
-    chain_ids = {
-        "ethereum": 1,
-        "mainnet": 1,
-    }
-    chain_id = chain_ids.get(args.chain.lower())
-    if chain_id is None:
-        console.print(
-            "[yellow]Unknown chain. Falling back to Ethereum mainnet for Etherscan.[/yellow]"
-        )
-        chain_id = 1
+    chain_id = _resolve_chain_id(args.chain, console)
 
-    bytecode = ""
-    source_code = ""
-
-    if settings.rpc_url:
-        console.print("[cyan]Fetching bytecode via RPC...[/cyan]")
-        rpc = BlockchainRPC(settings.rpc_url)
-        bytecode = rpc.get_bytecode(args.address)
-        if not bytecode:
-            console.print(
-                "[yellow]No bytecode found. This address may be an EOA, not a contract.[/yellow]"
-            )
-    else:
-        console.print(
-            "[yellow]RPC_URL not set. Bytecode analysis skipped.[/yellow]"
-        )
-
-    if settings.etherscan_api_key:
-        console.print("[cyan]Fetching source code via Etherscan...[/cyan]")
-        etherscan = EtherscanClient(settings.etherscan_api_key, chain_id=chain_id)
-        source_code, status, message, detail = etherscan.get_source_code(args.address)
-        if not source_code:
-            console.print(
-                "[yellow]No source code found (not verified or not a contract).[/yellow]"
-            )
-            if status or message:
-                console.print(
-                    f"[yellow]Etherscan status: {status}, message: {message}[/yellow]"
-                )
-            if detail:
-                console.print(f"[yellow]Etherscan detail: {detail}[/yellow]")
-    else:
-        console.print(
-            "[yellow]ETHERSCAN_API_KEY not set. Source analysis skipped.[/yellow]"
-        )
+    bytecode = _fetch_bytecode(settings.rpc_url, args.address, console)
+    source_code = _fetch_source_code(
+        settings.etherscan_api_key,
+        chain_id,
+        args.address,
+        console,
+    )
 
     if not bytecode and not source_code:
         console.print(
@@ -146,3 +106,71 @@ def main() -> None:
         print(generate_security_report(report))
     else:
         print(to_json(report))
+
+
+def _run_exploit_test(args: argparse.Namespace, console: Console) -> bool:
+    if not args.exploit_test:
+        return False
+    # Exploit evaluation mode runs a local fixture with expected labels.
+    with open(args.exploit_test, "r", encoding="utf-8") as handle:
+        source_code = handle.read()
+    if not args.expected:
+        console.print("[red]--expected is required in exploit test mode.[/red]")
+        return True
+    expected = load_expected_flags(args.expected)
+    result = evaluate_exploit_contract(source_code, expected)
+    print(generate_exploit_report(result))
+    return True
+
+
+def _resolve_chain_id(chain: str, console: Console) -> int:
+    chain_id = CHAIN_IDS.get(chain.lower())
+    if chain_id is None:
+        console.print(
+            "[yellow]Unknown chain. Falling back to Ethereum mainnet for Etherscan.[/yellow]"
+        )
+        return 1
+    return chain_id
+
+
+def _fetch_bytecode(rpc_url: str | None, address: str, console: Console) -> str:
+    if not rpc_url:
+        console.print(
+            "[yellow]RPC_URL not set. Bytecode analysis skipped.[/yellow]"
+        )
+        return ""
+    console.print("[cyan]Fetching bytecode via RPC...[/cyan]")
+    rpc = BlockchainRPC(rpc_url)
+    bytecode = rpc.get_bytecode(address)
+    if not bytecode:
+        console.print(
+            "[yellow]No bytecode found. This address may be an EOA, not a contract.[/yellow]"
+        )
+    return bytecode
+
+
+def _fetch_source_code(
+    api_key: str | None,
+    chain_id: int,
+    address: str,
+    console: Console,
+) -> str:
+    if not api_key:
+        console.print(
+            "[yellow]ETHERSCAN_API_KEY not set. Source analysis skipped.[/yellow]"
+        )
+        return ""
+    console.print("[cyan]Fetching source code via Etherscan...[/cyan]")
+    etherscan = EtherscanClient(api_key, chain_id=chain_id)
+    source_code, status, message, detail = etherscan.get_source_code(address)
+    if not source_code:
+        console.print(
+            "[yellow]No source code found (not verified or not a contract).[/yellow]"
+        )
+        if status or message:
+            console.print(
+                f"[yellow]Etherscan status: {status}, message: {message}[/yellow]"
+            )
+        if detail:
+            console.print(f"[yellow]Etherscan detail: {detail}[/yellow]")
+    return source_code

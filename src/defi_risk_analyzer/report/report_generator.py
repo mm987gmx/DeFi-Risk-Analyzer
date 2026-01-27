@@ -9,6 +9,13 @@ SEVERITY_SCORES: dict[Severity, float] = {
     "critical": 25.0,
 }
 
+SEVERITY_RANK: dict[Severity, int] = {
+    "low": 1,
+    "medium": 2,
+    "high": 3,
+    "critical": 4,
+}
+
 
 def generate_security_report(report: RiskReport) -> str:
     """Generate a human-readable Markdown security report."""
@@ -97,11 +104,7 @@ def _compute_security_score(
     red_flags: list[RedFlag],
     llm_findings: list[LLMFinding],
 ) -> tuple[float, float, float]:
-    total = 0.0
-    for flag in red_flags:
-        total += SEVERITY_SCORES.get(flag.severity, 0.0)
-    for finding in llm_findings:
-        total += SEVERITY_SCORES.get(finding.severity, 0.0)
+    total = _sum_severity_points(red_flags) + _sum_severity_points(llm_findings)
     capped_deduction = min(100.0, total)
     score = max(0.0, 100.0 - capped_deduction)
     return score, total, capped_deduction
@@ -114,14 +117,12 @@ def _collect_top_issues(report: RiskReport) -> list[str]:
     for finding in report.llm_findings:
         issues.append((finding.severity, finding.issue))
 
-    severity_rank: dict[Severity, int] = {
-        "low": 1,
-        "medium": 2,
-        "high": 3,
-        "critical": 4,
-    }
-    issues.sort(key=lambda item: severity_rank[item[0]], reverse=True)
+    issues.sort(key=lambda item: SEVERITY_RANK[item[0]], reverse=True)
     return [name for _, name in issues]
+
+
+def _sum_severity_points(findings: list[RedFlag | LLMFinding]) -> float:
+    return sum(SEVERITY_SCORES.get(item.severity, 0.0) for item in findings)
 
 
 def _extract_function_name(evidence: str) -> str:
