@@ -1,46 +1,194 @@
-# DeFi Risk Analyzer (Engineering Version)
+# DeFi Risk Analyzer
 
-This is a starter project for a DeFi risk analysis tool. It accepts a smart contract address, retrieves on-chain data and optional source code, runs simple static checks, and produces a risk report in JSON or Markdown.
+A production-ready DeFi security analysis tool that combines rule-based static analysis with AI-powered insights. Analyzes smart contracts for common vulnerabilities and produces comprehensive security reports.
 
-## What this project does
-- Takes a contract address from the user (CLI).
-- Fetches bytecode via RPC and source code via Etherscan (if keys are provided).
-- Detects basic red flags with rule-based heuristics.
-- Produces a structured risk report.
-- Optionally prepares the report for LLM enrichment (stub for now).
+## Features
 
-## Quick start
-1. Create a virtual environment and install dependencies:
-   - `python3 -m venv .venv`
-   - `source .venv/bin/activate`
-   - `python -m pip install -r requirements.txt`
-2. Copy `env.example` to `.env` and set your API keys (the app loads them automatically).
-3. Run the CLI:
-   - `PYTHONPATH=src python -m defi_risk_analyzer --address 0x... --format markdown`
+### Core Analysis
+- **Rule-Based Detection**: Scans for risky patterns like `delegatecall`, `tx.origin`, `call.value`
+- **Heuristic Checks**: Identifies missing security modifiers (`nonReentrant`, `onlyOwner`)
+- **Bytecode Analysis**: Detects dangerous opcodes (DELEGATECALL, SELFDESTRUCT)
+- **AI Insights**: Integrates with OpenAI for contextual security analysis
 
-## Environment variables
-- `RPC_URL` — Ethereum JSON-RPC endpoint used to fetch bytecode.
-- `ETHERSCAN_API_KEY` — API key used to fetch verified source code.
-- `OPENAI_API_KEY` — used to call the LLM for contract insights.
-- `OPENAI_MODEL` — model name for the LLM call (default: `gpt-4o-mini`).
+### Performance & Reliability
+- **Smart Caching**: File-based cache with TTL (1 hour default) for API responses
+- **Automatic Retry**: Exponential backoff for API calls (Etherscan, RPC)
+- **Multi-Chain Support**: Configurable chain ID for different networks
 
-## Running tests
-1. Install the test runner:
-   - `python -m pip install pytest`
-2. Run the test suite:
-   - `PYTHONPATH=src python -m pytest`
+### Output Formats
+- **Markdown Report**: Human-readable security report with scoring
+- **JSON Export**: Structured data for programmatic analysis
+- **Exploit Testing**: Evaluate analyzer against known vulnerable contracts
 
-## How the static checks work
-- Source rules live in `src/defi_risk_analyzer/analysis/rules.py`.
-- The engine scans source code for keywords/regex and bytecode for opcode patterns.
-- Each match becomes a `RedFlag` entry with evidence (line number and snippet).
-## Project layout
-- `src/defi_risk_analyzer/cli.py` — CLI entrypoint and main workflow
-- `src/defi_risk_analyzer/clients/` — RPC and Etherscan clients
-- `src/defi_risk_analyzer/analysis/` — static analysis heuristics
-- `src/defi_risk_analyzer/llm/` — LLM risk engine (placeholder)
-- `src/defi_risk_analyzer/report/` — report formatting
-- `src/defi_risk_analyzer/models.py` — Pydantic models for reports
+## Quick Start
 
-## Notes
-This is an initial skeleton meant for extension. The LLM integration is intentionally minimal.
+### Installation
+```bash
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Configuration
+```bash
+# Copy example config
+cp env.example .env
+
+# Edit .env and add your API keys:
+# - RPC_URL (required for bytecode analysis)
+# - ETHERSCAN_API_KEY (required for source code)
+# - OPENAI_API_KEY (optional, for AI insights)
+```
+
+### Usage
+
+**Basic analysis:**
+```bash
+PYTHONPATH=src python -m defi_risk_analyzer \
+  --address 0x6f52d2694ab0131b81f4c3476c7bc4f67ab36418 \
+  --format markdown
+```
+
+**JSON output:**
+```bash
+PYTHONPATH=src python -m defi_risk_analyzer \
+  --address 0x6f52d2694ab0131b81f4c3476c7bc4f67ab36418 \
+  --format json
+```
+
+**Exploit testing mode:**
+```bash
+PYTHONPATH=src python -m defi_risk_analyzer \
+  --exploit-test tests/fixtures/reentrancy_vault.sol \
+  --expected tests/fixtures/reentrancy_expected.json
+```
+
+## Environment Variables
+
+| Variable | Required | Description | Default |
+|----------|----------|-------------|---------|
+| `RPC_URL` | Yes* | Ethereum JSON-RPC endpoint for bytecode | - |
+| `ETHERSCAN_API_KEY` | Yes* | Etherscan API key for source code | - |
+| `OPENAI_API_KEY` | No | OpenAI API key for AI insights | - |
+| `OPENAI_MODEL` | No | OpenAI model name | `gpt-4o-mini` |
+
+*At least one of RPC_URL or ETHERSCAN_API_KEY is required for analysis.
+
+## Testing
+
+### Run all tests:
+```bash
+PYTHONPATH=src python -m pytest -v
+```
+
+### Run specific test:
+```bash
+PYTHONPATH=src python -m pytest tests/test_static_analysis.py -v
+```
+
+### Test coverage:
+- Static analysis (rule-based + heuristic checks)
+- Report generation (Markdown structure validation)
+- Exploit evaluation (false negative detection)
+
+## How It Works
+
+### Analysis Pipeline
+1. **Data Fetching** (with cache & retry)
+   - Bytecode via RPC
+   - Source code via Etherscan API v2
+   
+2. **Static Analysis**
+   - **Rule-based**: Pattern matching for known vulnerabilities
+   - **Heuristic**: Best-effort detection of missing modifiers
+   - **Bytecode**: Opcode sequence scanning
+
+3. **AI Enhancement** (optional)
+   - Structured prompt to OpenAI
+   - Parsed JSON findings with severity, function, and recommendations
+
+4. **Report Generation**
+   - Security score (0-100) with severity weights
+   - Markdown report with Summary, Technical Issues, AI Findings, Security Score
+   - JSON export for programmatic use
+
+### Detection Rules
+
+#### Source Code Patterns
+- `delegatecall` — Dangerous delegate calls
+- `call.value` — Unsafe value transfers
+- `tx.origin` — Authentication using tx.origin
+
+#### Heuristic Checks
+- Missing `nonReentrant` modifier when external calls present
+- Missing `onlyOwner` modifier when ownership patterns detected
+
+#### Bytecode Patterns
+- `f4` opcode (DELEGATECALL)
+- `ff` opcode (SELFDESTRUCT)
+
+## Project Structure
+
+```
+src/defi_risk_analyzer/
+├── analysis/
+│   ├── rules.py              # Rule definitions
+│   ├── static_analysis.py    # Rule-based pattern matching
+│   └── heuristics.py         # Heuristic checks for missing modifiers
+├── clients/
+│   ├── blockchain_rpc.py     # RPC client (with cache & retry)
+│   └── etherscan.py          # Etherscan API client (with cache & retry)
+├── evaluation/
+│   └── exploit_test.py       # Real-world exploit evaluation
+├── llm/
+│   └── risk_engine.py        # OpenAI integration
+├── report/
+│   ├── generator.py          # JSON/Markdown legacy formatter
+│   └── report_generator.py   # Enhanced Markdown report
+├── cache.py                  # File-based cache with TTL
+├── retry.py                  # Retry decorator for API calls
+├── scoring.py                # Unified severity scoring
+├── console_reporter.py       # CLI output formatting
+├── models.py                 # Pydantic data models
+├── config.py                 # Settings management
+└── cli.py                    # CLI entrypoint
+```
+
+## Cache Management
+
+The analyzer caches API responses in `.cache/` directory:
+- **Location**: `.cache/rpc/` and `.cache/etherscan/`
+- **TTL**: 1 hour (configurable)
+- **Format**: JSON files with timestamps
+- **Clear cache**: `rm -rf .cache/`
+
+Disable caching programmatically:
+```python
+from defi_risk_analyzer.clients.blockchain_rpc import BlockchainRPC
+rpc = BlockchainRPC(rpc_url, enable_cache=False)
+```
+
+## Security Score
+
+The analyzer computes a 0-100 security score using weighted severity points:
+- **Critical**: 25 points
+- **High**: 10 points
+- **Medium**: 5 points
+- **Low**: 1 point
+
+Score = 100 - (sum of all severity points, capped at 100)
+
+## Contributing
+
+This project follows clean code principles:
+- **Separation of concerns**: Analysis, clients, reporting in separate modules
+- **DRY**: Single source of truth for rules, patterns, scoring
+- **Resilience**: Retry logic, caching, proper error handling
+- **Testability**: Modular design with comprehensive test coverage
+
+## License
+
+This project is intended for educational and portfolio demonstration purposes.
