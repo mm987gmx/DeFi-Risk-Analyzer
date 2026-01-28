@@ -2,6 +2,17 @@
 
 A production-ready DeFi security analysis tool that combines rule-based static analysis with AI-powered insights. Analyzes smart contracts for common vulnerabilities and produces comprehensive security reports.
 
+## Tech Stack
+
+| Category | Technology |
+|----------|------------|
+| Language | Python 3.10+ |
+| Data Validation | Pydantic |
+| Blockchain | web3.py |
+| HTTP Client | requests |
+| CLI Output | rich |
+| Testing | pytest |
+
 ## Features
 
 ### Core Analysis
@@ -19,6 +30,12 @@ A production-ready DeFi security analysis tool that combines rule-based static a
 - **Markdown Report**: Human-readable security report with scoring
 - **JSON Export**: Structured data for programmatic analysis
 - **Exploit Testing**: Evaluate analyzer against known vulnerable contracts
+
+## Requirements
+
+- **Python**: 3.10 or higher
+- **OS**: macOS, Linux, Windows
+- **API Keys**: At least one of Etherscan API key or RPC endpoint
 
 ## Quick Start
 
@@ -47,6 +64,7 @@ cp env.example .env
 
 **Basic analysis:**
 ```bash
+# Analyze a verified contract (example: a DeFi token)
 PYTHONPATH=src python -m defi_risk_analyzer \
   --address 0x6f52d2694ab0131b81f4c3476c7bc4f67ab36418 \
   --format markdown
@@ -59,11 +77,37 @@ PYTHONPATH=src python -m defi_risk_analyzer \
   --format json
 ```
 
+> **Note**: Use any verified contract address from [Etherscan](https://etherscan.io). The example address is a real token contract.
+
 **Exploit testing mode:**
 ```bash
 PYTHONPATH=src python -m defi_risk_analyzer \
   --exploit-test tests/fixtures/reentrancy_vault.sol \
   --expected tests/fixtures/reentrancy_expected.json
+```
+
+### Example Output
+
+```markdown
+# Security Report
+
+## Summary
+The contract has **4** static findings and **3** AI findings. 
+Most critical risks: Use of delegatecall; Missing nonReentrant modifier; Unsafe external call.
+
+## Technical Issues
+- **Use of delegatecall** | Function: `upgrade` | Severity: **high**
+  - Delegatecall can allow code execution in caller's context.
+- **Missing nonReentrant modifier** | Function: `withdraw` | Severity: **medium**
+  - External functions with external calls detected, but no nonReentrant modifier found.
+
+## AI Findings
+- **Reentrancy vulnerability** | Function: `withdraw` | Severity: **high**
+  - State changes after external call allow reentrant attacks.
+  - Recommendation: Use checks-effects-interactions pattern or nonReentrant modifier.
+
+## Security Score
+**65.0 / 100** — Score starts at 100 and subtracts weighted points per severity...
 ```
 
 ## Environment Variables
@@ -76,6 +120,10 @@ PYTHONPATH=src python -m defi_risk_analyzer \
 | `OPENAI_MODEL` | No | OpenAI model name | `gpt-4o-mini` |
 
 *At least one of RPC_URL or ETHERSCAN_API_KEY is required for analysis.
+
+> **Get free API keys:**
+> - Etherscan: [etherscan.io/apis](https://etherscan.io/apis)
+> - RPC: [Alchemy](https://www.alchemy.com/), [Infura](https://www.infura.io/), or [QuickNode](https://www.quicknode.com/)
 
 ## Testing
 
@@ -180,6 +228,17 @@ The analyzer computes a 0-100 security score using weighted severity points:
 - **Low**: 1 point
 
 Score = 100 - (sum of all severity points, capped at 100)
+
+## Roadmap
+
+**Planned improvements:**
+- [ ] More detection rules (flash loan patterns, price oracle manipulation)
+- [ ] Slither integration for deeper static analysis
+- [ ] Multi-file contract support (imports, inheritance)
+- [ ] Web UI dashboard
+- [ ] GitHub Actions CI/CD pipeline
+- [ ] Docker containerization
+- [ ] Support for more chains (Polygon, Arbitrum, BSC)
 
 ## Contributing
 
