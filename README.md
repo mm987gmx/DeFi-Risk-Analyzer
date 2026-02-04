@@ -229,6 +229,14 @@ The analyzer computes a 0-100 security score using weighted severity points:
 
 Score = 100 - (sum of all severity points, capped at 100)
 
+## Documentation
+
+Detailed documentation is available in the [`docs/`](docs/) directory:
+
+- **[Architecture](docs/architecture.md)** - System design, component responsibilities, and data flow
+- **[Threat Model](docs/threat-model.md)** - Detected vulnerabilities and attack vectors
+- **[Adding Rules](docs/adding-rules.md)** - Guide for extending detection capabilities
+
 ## Roadmap
 
 **Planned improvements:**
@@ -247,6 +255,8 @@ This project follows clean code principles:
 - **DRY**: Single source of truth for rules, patterns, scoring
 - **Resilience**: Retry logic, caching, proper error handling
 - **Testability**: Modular design with comprehensive test coverage
+
+See [Adding Rules](docs/adding-rules.md) for guidance on extending detection capabilities.
 
 ## License
 
